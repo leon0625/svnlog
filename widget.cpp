@@ -8,6 +8,7 @@
 #include <QHeaderView>  //表头视图类
 #include <QFileDialog>
 #include <QProcess>
+#include <QTimeZone>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -36,6 +37,16 @@ Widget::~Widget()
     delete ui;
 }
 
+/* 2020-12-02T12:23:22.123132 ==> 2020-12-02 20:23:22  */
+QString Svnlog::utcDateFormatLocalTime(QString &sdate)
+{
+    QString sdate_no_ms = sdate.split(".")[0];
+    QDateTime date = QDateTime::fromString(sdate_no_ms, "yyyy-MM-dd'T'hh:mm:ss");
+    int offset = date.timeZone().offsetFromUtc(date);
+    date = date.addSecs(offset);
+    qDebug() << date.toString("yyyy-MM-dd hh:mm:ss");
+    return date.toString("yyyy-MM-dd hh:mm:ss");
+}
 
 void Svnlog::parse_xml_log(const char *filename)
 {
@@ -64,7 +75,8 @@ void Svnlog::parse_xml_log(const char *filename)
         }
         else if(xml.name() == "date")
         {
-            entry.date = xml.readElementText();
+            QString utcDate = xml.readElementText();
+            entry.date = utcDateFormatLocalTime(utcDate);
         }
         else if(xml.name() == "paths")
         {

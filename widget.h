@@ -31,6 +31,7 @@ public:
     void parse_xml_log(const char *filename);
     void print_svnlog();
     LogEntry *get_logentry_by_id(QString &id);
+    QString utcDateFormatLocalTime(QString &sdate);
 };
 
 class Widget : public QWidget
