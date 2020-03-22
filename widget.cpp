@@ -9,6 +9,7 @@
 #include <QFileDialog>
 #include <QProcess>
 #include <QTimeZone>
+#include <QThread>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -30,6 +31,13 @@ Widget::Widget(QWidget *parent)
     //设置表格为不可编辑状态
     ui->logTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     ui->filesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    //设置表格不显示前面的行号
+    ui->logTable->verticalHeader()->setHidden(true);
+    ui->filesTable->verticalHeader()->setHidden(true);
+
+    //关联信号槽
+    QObject::connect(&svnlog, SIGNAL(svnMsgChange(QString &)), this, SLOT(updateSvnMsgOnUI(QString &)));
 }
 
 Widget::~Widget()
@@ -38,13 +46,13 @@ Widget::~Widget()
 }
 
 /* 2020-12-02T12:23:22.123132 ==> 2020-12-02 20:23:22  */
-QString Svnlog::utcDateFormatLocalTime(QString &sdate)
+QString utcDateFormatLocalTime(QString &sdate)
 {
     QString sdate_no_ms = sdate.split(".")[0];
     QDateTime date = QDateTime::fromString(sdate_no_ms, "yyyy-MM-dd'T'hh:mm:ss");
     int offset = date.timeZone().offsetFromUtc(date);
     date = date.addSecs(offset);
-    qDebug() << date.toString("yyyy-MM-dd hh:mm:ss");
+    //qDebug() << date.toString("yyyy-MM-dd hh:mm:ss");
     return date.toString("yyyy-MM-dd hh:mm:ss");
 }
 
@@ -107,6 +115,144 @@ void Svnlog::parse_xml_log(const char *filename)
     file.close();
 }
 
+bool Svnlog::currentWorkDirHaveSvnInfo()
+{
+    QProcess process;
+
+    qDebug() << QDir::currentPath();
+    process.start("svn ");
+}
+
+bool Svnlog::setSvnUrl(const QString &input_url)
+{
+    if(input_url.length())
+    {
+        svnUrl = input_url;
+        return true;
+    }
+    else
+    {
+        QProcess process;
+        QString cmd;
+        qDebug() << QDir::currentPath();
+
+        updateSvnMsg("获取当前路径的svn信息中...");
+
+        cmd = "svn info --show-item url";
+        qDebug() << cmd;
+        process.start(cmd);
+        process.waitForFinished();
+        QString output = process.readAllStandardOutput().data();
+
+        if(output.length() > 0)
+        {
+            qDebug() << "repos-root-url: " << output;
+            svnUrl = output.trimmed();
+            updateSvnMsg(svnUrl);
+            return true;
+        }
+        else
+        {
+            msg = process.readAllStandardError().data();
+            updateSvnMsg(msg);
+            qDebug() << "svn info --show-item repos-root-url [error]: " << msg;
+            return false;
+        }
+    }
+}
+
+bool Svnlog::getSvnRootPath()
+{
+    QProcess process;
+    QString cmd;
+    qDebug() << QDir::currentPath();
+
+    updateSvnMsg("获取svn root url...");
+    cmd = "svn info --show-item repos-root-url " + svnUrl;
+    qDebug() << cmd;
+    process.start(cmd);
+    process.waitForFinished();
+    QString output = process.readAllStandardOutput().data();
+
+    if(output.length() > 0)
+    {
+        qDebug() << "repos-root-url: " << output;
+        rootpath = output.trimmed();
+        updateSvnMsg(rootpath);
+        return true;
+    }
+    else
+    {
+        msg = process.readAllStandardError().data();
+        updateSvnMsg(msg);
+        qDebug() << "svn info --show-item repos-root-url [error]: " << msg;
+    }
+    return false;
+}
+
+bool Svnlog::makeSvnLogFile()
+{
+    QProcess process;
+    QString cmd;
+    char filepath[] = "/tmp/temp.svnlog.txt";
+
+    updateSvnMsg("获取svn日志中...");
+
+    if(!svnUrl.length())
+    {
+        qDebug() << "svnUrl len is 0";
+        return false;
+    }
+
+    cmd = QString::asprintf("svn log -v --xml %s %s", showAllLog ? "" : "-l 100", svnUrl.toStdString().c_str());
+    qDebug() << cmd;
+    process.setStandardOutputFile(filepath);
+    process.start(cmd);
+    process.waitForFinished();
+    if(process.exitCode() == 0)
+    {
+        logFilePath = filepath;
+        return true;
+    }
+    else
+    {
+        qDebug() << process.exitCode();
+        msg = process.readAllStandardError().data();
+        updateSvnMsg(msg);
+        qDebug() << msg;
+        return false;
+    }
+}
+
+void Svnlog::destory_log()
+{
+    for(auto entry:logs)
+    {
+        entry.paths.clear();
+    }
+    logs.clear();
+}
+
+bool Svnlog::init_log(const QString &url)
+{
+    destory_log();
+
+    if(!setSvnUrl(url))
+        return false;
+
+    if(!getSvnRootPath())
+        return false;
+
+    qDebug() << rootpath;
+
+    if(!makeSvnLogFile())
+        return false;
+
+    parse_xml_log(logFilePath.toStdString().c_str());
+
+    return true;
+}
+
 void Svnlog::print_svnlog(void)
 {
     //打印出来
@@ -127,17 +273,17 @@ void Svnlog::print_svnlog(void)
     }
 }
 
-void Widget::init_logtable(QString logpath)
+void Widget::init_logtable()
 {
-    qDebug() << logpath;
-
-    svnlog.parse_xml_log(logpath.toStdString().c_str());
     int linenum = 0;
 
-    QList<LogEntry>::iterator i;
-    QList<LogPath>::iterator j;
+    /* 清除表格中数据 */
+    ui->logTable->setRowCount(0);
+    ui->filesTable->clearContents();
+    // ui->logTable->clear();   //这个函数会清除表头
+
     QTableWidgetItem *item;
-    for(i=svnlog.logs.begin(); i != svnlog.logs.end(); ++i, linenum++)
+    for(auto i=svnlog.logs.begin(); i != svnlog.logs.end(); ++i, linenum++)
     {
         /* 插入行 */
         ui->logTable->insertRow(linenum);
@@ -159,17 +305,31 @@ void Widget::init_logtable(QString logpath)
         ui->logTable->setItem(linenum, 3, item);
 
     }
-    /* 初始化选中第一行 */
-    ui->logTable->selectRow(0);
+
+    ui->labelLogNum->setText("当前显示了" + QString::number(linenum) + "条日志");
+}
+
+void Widget::show_notice_msg(const QString &msg)
+{
+    ui->commentBrowser->append(msg);
+    ui->commentBrowser->repaint();      //可以使其立即更新
 }
 
 
 void Widget::on_openButton_clicked()
 {
-//    QString dir = QFileDialog::getExistingDirectory();
-    QString filepath = QFileDialog::getOpenFileName();
-    qDebug() << filepath;
-    Widget::init_logtable(filepath);
+    //QString dir = QFileDialog::getExistingDirectory();
+    //QString filepath = QFileDialog::getOpenFileName();
+    //qDebug() << dir;
+    ui->commentBrowser->clear();
+    if(svnlog.init_log(ui->LineEditSvnPath->text()))
+    {
+        init_logtable();
+
+        ui->LineEditSvnPath->setText(svnlog.svnUrl);
+        /* 初始化选中第一条日志 */
+        ui->logTable->selectRow(0);
+    }
 }
 
 LogEntry *Svnlog::get_logentry_by_id(QString &id)
@@ -194,6 +354,12 @@ LogEntry *Svnlog::get_logentry_by_id(QString &id)
 
 void Widget::on_logTable_currentItemChanged(QTableWidgetItem *current, QTableWidgetItem *previous)
 {
+    /* 当日志条目表格清空时，这里会传入空指针 */
+    if(!current)
+    {
+        return;
+    }
+
     /* 注释框内显示注释 */
     ui->commentBrowser->clear();
     QString id = ui->logTable->item(current->row(), 0)->text();
@@ -210,7 +376,7 @@ void Widget::on_logTable_currentItemChanged(QTableWidgetItem *current, QTableWid
     int row = 0;
     for(j=finded->paths.begin(); j != finded->paths.end(); ++j, row++)
     {
-        qDebug() << "动作：" << j->action << "  路径：" << j->path;
+        // qDebug() << "动作：" << j->action << "  路径：" << j->path;
 
         ui->filesTable->insertRow(row);
 
@@ -228,10 +394,16 @@ void Widget::on_filesTable_itemDoubleClicked(QTableWidgetItem *current)
     QString path = ui->filesTable->item(current->row(), 1)->text();
     QString svn = ui->logTable->item(log_select_row, 0)->text();
 
-    qDebug() << path << "|" << rootpath + path << " " << svn;
+    qDebug() << path << "|" << svnlog.rootpath + path << " " << svn;
 
     QProcess process(this);
-    QString cmd = "svn diff -c " + svn + " " + rootpath + path;
+    QString cmd = "svn diff -c " + svn + " " + svnlog.rootpath + path;
     qDebug() << cmd;
     process.startDetached(cmd);
+}
+
+void Widget::on_showAllCheckBox_stateChanged(int arg1)
+{
+    qDebug() << arg1;
+    svnlog.showAllLog = arg1;
 }

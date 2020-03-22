@@ -9,6 +9,8 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
 QT_END_NAMESPACE
 
+QString utcDateFormatLocalTime(QString &sdate);
+
 class LogPath{
 public:
     QString action;
@@ -24,14 +26,35 @@ public:
     QList <LogPath> paths;
 };
 
-class Svnlog{
+/* 需要继承信号和槽机制，所以这里继承QObject类 */
+class Svnlog: public QObject {
+    Q_OBJECT        //凡是QObject类（不管是直接子类还是间接子类），都应该在第一行代码写上Q_OBJECT。不管是不是使用信号槽，都应该添加这个宏。
+
+private:
+    bool currentWorkDirHaveSvnInfo();
+    bool getSvnRootPath();
+    bool setSvnUrl(const QString &input_url);
+    bool makeSvnLogFile();
 public:
     QList <LogEntry> logs;
+    QString rootpath;
+    QString svnUrl;
+    QString logFilePath;
+    QString msg;
+    bool showAllLog = false;
 
     void parse_xml_log(const char *filename);
     void print_svnlog();
+    bool init_log(const QString &url);
+    void destory_log();
     LogEntry *get_logentry_by_id(QString &id);
-    QString utcDateFormatLocalTime(QString &sdate);
+    void updateSvnMsg(QString msg) {
+        msg = msg;
+        emit svnMsgChange(msg); // emit关键字发送这个信号
+    }
+signals:
+    //定义自己的信号
+    void svnMsgChange(QString &msg);
 };
 
 class Widget : public QWidget
@@ -43,9 +66,8 @@ public:
     ~Widget();
     Svnlog svnlog;
 
-    char *logpath;
-    char *rootpath;
-    void init_logtable(QString path);
+    void init_logtable();
+    void show_notice_msg(const QString &msg);
 
 private slots:
     void on_openButton_clicked();
@@ -54,8 +76,15 @@ private slots:
 
     void on_filesTable_itemDoubleClicked(QTableWidgetItem *item);
 
+    void on_showAllCheckBox_stateChanged(int arg1);
 
 private:
     Ui::Widget *ui;
+
+public slots:
+    void updateSvnMsgOnUI(QString &msg)
+    {
+        show_notice_msg(msg);
+    }
 };
 #endif // WIDGET_H
