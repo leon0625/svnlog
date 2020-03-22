@@ -291,10 +291,12 @@ void Widget::init_logtable()
         /* id */
         item = new QTableWidgetItem(i->logid);
         ui->logTable->setItem(linenum, 0, item);
+        ui->logTable->item(linenum, 0)->setTextAlignment(Qt::AlignCenter);  //居中
 
         /* auth */
         item = new QTableWidgetItem(i->auth);
         ui->logTable->setItem(linenum, 1, item);
+        ui->logTable->item(linenum, 1)->setTextAlignment(Qt::AlignCenter);  //居中
 
         /* date */
         item = new QTableWidgetItem(i->date);
@@ -382,6 +384,7 @@ void Widget::on_logTable_currentItemChanged(QTableWidgetItem *current, QTableWid
 
         item = new QTableWidgetItem(j->action);
         ui->filesTable->setItem(row, 0, item);
+        ui->filesTable->item(row, 0)->setTextAlignment(Qt::AlignCenter);  //居中
 
         item = new QTableWidgetItem(j->path);
         ui->filesTable->setItem(row, 1, item);
