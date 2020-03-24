@@ -74,6 +74,7 @@ public:
     void search_log_and_show(const QString &keyword);
     void init_svn_url_history(void);
     void save_svn_url_history(const QString &url);
+    void clear_svn_url_history(void);
 
 private slots:
     void on_openButton_clicked();
@@ -87,6 +88,8 @@ private slots:
     void on_findButton_clicked();
 
     void on_search_key_word_returnPressed();
+
+    void on_comboBoxSvnPath_currentIndexChanged(const QString &arg1);
 
 private:
     Ui::Widget *ui;

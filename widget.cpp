@@ -47,13 +47,14 @@ Widget::Widget(QWidget *parent)
 void Widget::init_svn_url_history()
 {
     QFile file(SVN_URL_HISTORY_FILE);
+
+    ui->comboBoxSvnPath->clear();
+
     if(false == file.open(QIODevice::ReadOnly))
     {
         qDebug() << file.errorString();
         return;
     }
-
-    ui->comboBoxSvnPath->clear();
 
     QTextStream history_stream(&file);
     QString line;
@@ -63,6 +64,7 @@ void Widget::init_svn_url_history()
         if(line.length() > 0)
             ui->comboBoxSvnPath->addItem(line);
     }
+    ui->comboBoxSvnPath->addItem("清除历史记录");
     file.close();
 }
 
@@ -102,6 +104,12 @@ void Widget::save_svn_url_history(const QString &url)
 
     file.close();
 
+    init_svn_url_history();
+}
+void Widget::clear_svn_url_history()
+{
+    QFile file(SVN_URL_HISTORY_FILE);
+    file.remove();
     init_svn_url_history();
 }
 
@@ -534,4 +542,11 @@ void Widget::on_search_key_word_returnPressed()
 {
     QString input = ui->search_key_word->text();
     search_log_and_show(input);
+}
+
+void Widget::on_comboBoxSvnPath_currentIndexChanged(const QString &text)
+{
+    qDebug() << text;
+    if(text == "清除历史记录")
+        clear_svn_url_history();
 }
