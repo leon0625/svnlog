@@ -10,6 +10,7 @@
 #include <QProcess>
 #include <QTimeZone>
 #include <QThread>
+#include <QTextStream>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -38,6 +39,70 @@ Widget::Widget(QWidget *parent)
 
     //关联信号槽
     QObject::connect(&svnlog, SIGNAL(svnMsgChange(QString &)), this, SLOT(updateSvnMsgOnUI(QString &)));
+
+    init_svn_url_history();
+}
+
+/* 初始化历史下拉列表 */
+void Widget::init_svn_url_history()
+{
+    QFile file(SVN_URL_HISTORY_FILE);
+    if(false == file.open(QIODevice::ReadOnly))
+    {
+        qDebug() << file.errorString();
+        return;
+    }
+
+    ui->comboBoxSvnPath->clear();
+
+    QTextStream history_stream(&file);
+    QString line;
+    while(!history_stream.atEnd())
+    {
+        line = history_stream.readLine().trimmed();
+        if(line.length() > 0)
+            ui->comboBoxSvnPath->addItem(line);
+    }
+    file.close();
+}
+
+void Widget::save_svn_url_history(const QString &url)
+{
+    QFile file(SVN_URL_HISTORY_FILE);
+    if(false == file.open(QIODevice::ReadWrite))
+    {
+        qDebug() << file.errorString();
+        return;
+    }
+
+    /* 先读出所有的，方便去重，也方便插入，最近使用的插在最前面 */
+    QTextStream history_stream(&file);
+    QString line;
+    QList <QString> all_line;
+    while(!history_stream.atEnd())
+    {
+        line = history_stream.readLine().trimmed();
+        all_line.append(line);
+    }
+
+    history_stream.seek(0); //截断文件
+    //先把最新的写入文件
+    history_stream << url << endl;
+    /* 再把以前的写进去 */
+    for(auto entry : all_line)
+    {
+        qDebug() << entry << "==?==" << url;
+        if(entry==url)
+        {
+            qDebug() << "===";
+            continue;
+        }
+        history_stream << entry << endl;
+    }
+
+    file.close();
+
+    init_svn_url_history();
 }
 
 Widget::~Widget()
@@ -272,7 +337,7 @@ void Widget::clear_log_table()
     ui->filesTable->clearContents();
     // ui->logTable->clear();   //这个函数会清除表头
 
-    ui->labelLogNum->setText("当前显示了" + QString::number(0) + "条日志");
+    ui->labelLogNum->setText("当前显示" + QString::number(0) + "条");
 }
 
 void Widget::update_logtable(QList <LogEntry> &logs)
@@ -323,12 +388,13 @@ void Widget::on_openButton_clicked()
     //QString filepath = QFileDialog::getOpenFileName();
     //qDebug() << dir;
     ui->commentBrowser->clear();
-    if(svnlog.init_log(ui->LineEditSvnPath->text()))
+    if(svnlog.init_log(ui->comboBoxSvnPath->currentText()))
     {
         clear_log_table();
         update_logtable(svnlog.logs);
-
-        ui->LineEditSvnPath->setText(svnlog.svnUrl);
+        /* svn url是合法的，记录到缓存 */
+        save_svn_url_history(svnlog.svnUrl);
+        ui->comboBoxSvnPath->setCurrentText(svnlog.svnUrl);
     }
 }
 

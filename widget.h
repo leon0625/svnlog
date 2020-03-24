@@ -5,6 +5,8 @@
 #include "QList"
 #include "QTableWidgetItem"
 
+#define SVN_URL_HISTORY_FILE ".svnurl.history.cache"
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
 QT_END_NAMESPACE
@@ -70,6 +72,8 @@ public:
     void clear_log_table();
     void update_logtable(QList <LogEntry> &logs);
     void search_log_and_show(const QString &keyword);
+    void init_svn_url_history(void);
+    void save_svn_url_history(const QString &url);
 
 private slots:
     void on_openButton_clicked();
