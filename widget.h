@@ -66,8 +66,10 @@ public:
     ~Widget();
     Svnlog svnlog;
 
-    void init_logtable();
     void show_notice_msg(const QString &msg);
+    void clear_log_table();
+    void update_logtable(QList <LogEntry> &logs);
+    void search_log_and_show(const QString &keyword);
 
 private slots:
     void on_openButton_clicked();
@@ -77,6 +79,10 @@ private slots:
     void on_filesTable_itemDoubleClicked(QTableWidgetItem *item);
 
     void on_showAllCheckBox_stateChanged(int arg1);
+
+    void on_findButton_clicked();
+
+    void on_search_key_word_returnPressed();
 
 private:
     Ui::Widget *ui;

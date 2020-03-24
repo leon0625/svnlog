@@ -196,7 +196,7 @@ bool Svnlog::makeSvnLogFile()
     QString cmd;
     char filepath[] = "/tmp/temp.svnlog.txt";
 
-    updateSvnMsg("获取svn日志中...");
+    updateSvnMsg("获取svn日志中...(日志较多时可能卡顿)");
 
     if(!svnUrl.length())
     {
@@ -273,17 +273,22 @@ void Svnlog::print_svnlog(void)
     }
 }
 
-void Widget::init_logtable()
+void Widget::clear_log_table()
 {
-    int linenum = 0;
-
     /* 清除表格中数据 */
     ui->logTable->setRowCount(0);
     ui->filesTable->clearContents();
     // ui->logTable->clear();   //这个函数会清除表头
 
+    ui->labelLogNum->setText("当前显示了" + QString::number(0) + "条日志");
+}
+
+void Widget::update_logtable(QList <LogEntry> &logs)
+{
+    int linenum = 0;
+
     QTableWidgetItem *item;
-    for(auto i=svnlog.logs.begin(); i != svnlog.logs.end(); ++i, linenum++)
+    for(auto i=logs.begin(); i != logs.end(); ++i, linenum++)
     {
         /* 插入行 */
         ui->logTable->insertRow(linenum);
@@ -309,6 +314,8 @@ void Widget::init_logtable()
     }
 
     ui->labelLogNum->setText("当前显示了" + QString::number(linenum) + "条日志");
+    /* 初始化选中第一条日志 */
+    ui->logTable->selectRow(0);
 }
 
 void Widget::show_notice_msg(const QString &msg)
@@ -326,11 +333,10 @@ void Widget::on_openButton_clicked()
     ui->commentBrowser->clear();
     if(svnlog.init_log(ui->LineEditSvnPath->text()))
     {
-        init_logtable();
+        clear_log_table();
+        update_logtable(svnlog.logs);
 
         ui->LineEditSvnPath->setText(svnlog.svnUrl);
-        /* 初始化选中第一条日志 */
-        ui->logTable->selectRow(0);
     }
 }
 
@@ -409,4 +415,65 @@ void Widget::on_showAllCheckBox_stateChanged(int arg1)
 {
     qDebug() << arg1;
     svnlog.showAllLog = arg1;
+}
+
+bool keyword_in_log(const LogEntry &log, const QString &keyword)
+{
+    //查找注释
+    if(-1 != log.comment.indexOf(keyword))
+        return true;
+
+    //查找作者
+    if(-1 != log.auth.indexOf(keyword))
+        return true;
+
+    //查找文件名
+    for(auto path : log.paths)
+    {
+        if(-1 != path.path.indexOf(keyword))
+            return true;
+    }
+
+    return false;
+}
+
+/* 查找日志，空格分隔关键字 */
+void Widget::search_log_and_show(const QString &keyword)
+{
+    QStringList key_words =  keyword.split(" ");
+    QList<LogEntry> search_logs;
+    bool found = true;
+
+    for(auto log : svnlog.logs)
+    {
+        for(auto key:key_words)
+        {
+            if(false == keyword_in_log(log, key))
+            {
+                found = false;
+                break;
+            }
+        }
+        if(found)
+        {
+            search_logs.append(log);
+        }
+        found = true;
+    }
+
+    clear_log_table();
+    update_logtable(search_logs);
+}
+
+void Widget::on_findButton_clicked()
+{
+    QString input = ui->search_key_word->text();
+    search_log_and_show(input);
+}
+
+/* 输入框回车事件 */
+void Widget::on_search_key_word_returnPressed()
+{
+    QString input = ui->search_key_word->text();
+    search_log_and_show(input);
 }
