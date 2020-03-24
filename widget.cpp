@@ -115,14 +115,6 @@ void Svnlog::parse_xml_log(const char *filename)
     file.close();
 }
 
-bool Svnlog::currentWorkDirHaveSvnInfo()
-{
-    QProcess process;
-
-    qDebug() << QDir::currentPath();
-    process.start("svn ");
-}
-
 bool Svnlog::setSvnUrl(const QString &input_url)
 {
     if(input_url.length())
