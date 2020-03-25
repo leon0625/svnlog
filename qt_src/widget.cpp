@@ -41,6 +41,12 @@ Widget::Widget(QWidget *parent)
     QObject::connect(&svnlog, SIGNAL(svnMsgChange(QString &)), this, SLOT(updateSvnMsgOnUI(QString &)));
 
     init_svn_url_history();
+
+    //设置窗口最大化
+    setWindowState(Qt::WindowMaximized);
+
+    //设置时间列宽
+    ui->logTable->setColumnWidth(2, 150);
 }
 
 /* 初始化历史下拉列表 */
@@ -371,6 +377,7 @@ void Widget::update_logtable(QList <LogEntry> &logs)
         /* date */
         item = new QTableWidgetItem(i->date);
         ui->logTable->setItem(linenum, 2, item);
+        ui->logTable->item(linenum, 2)->setTextAlignment(Qt::AlignCenter);  //居中
 
         /* 注释 */
         item = new QTableWidgetItem(i->comment);
