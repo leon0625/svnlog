@@ -275,7 +275,7 @@ bool Svnlog::makeSvnLogFile()
         return false;
     }
 
-    cmd = QString::asprintf("svn log -v --xml %s %s", showAllLog ? "" : "-l 100", svnUrl.toStdString().c_str());
+    cmd = QString::asprintf("svn log -v --xml %s %s", showAllLog ? "" : "-l 500", svnUrl.toStdString().c_str());
     qDebug() << cmd;
     process.setStandardOutputFile(filepath);
     process.start(cmd);
@@ -498,6 +498,10 @@ bool keyword_in_log(const LogEntry &log, const QString &keyword)
 
     //查找作者
     if(-1 != log.auth.indexOf(keyword))
+        return true;
+
+    //查找svn id
+    if(-1 != log.logid.indexOf(keyword))
         return true;
 
     //查找文件名
